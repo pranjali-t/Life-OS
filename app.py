@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import os
-from google.genai as genai
+import requests
 
 # =====================================================
 # PAGE CONFIG
@@ -135,26 +135,23 @@ selected_date = st.sidebar.selectbox(
     dates
 )
 
-# Shareable Accountability Link
+# =====================================================
+# ACCOUNTABILITY
+# =====================================================
+
 st.sidebar.divider()
 
 st.sidebar.subheader("🔗 Accountability")
 
 st.query_params["date"] = selected_date
 
-share_link = (
-    f"http://localhost:8501/?date={selected_date}"
-)
-
-st.sidebar.code(
-    share_link,
-    language="text"
-)
-
 st.sidebar.caption(
-    "Share this link to show this day's stats."
+    "Selected day: " + str(selected_date)
 )
 
+# =====================================================
+# DAILY GOAL
+# =====================================================
 
 daily_goal = st.sidebar.slider(
     "🎯 Daily Screen-Time Goal",
@@ -219,65 +216,74 @@ col1, col2, col3 = st.columns(3)
 
 with col1:
 
-    st.markdown("""
-    <div class="kpi-card">
+    st.markdown(
+        f"""
+        <div class="kpi-card">
 
-    <div class="kpi-label">
-    📱 TOTAL SCREEN TIME
-    </div>
+        <div class="kpi-label">
+        📱 TOTAL SCREEN TIME
+        </div>
 
-    <div class="kpi-value">
-    """ + screen_time + """
-    </div>
+        <div class="kpi-value">
+        {screen_time}
+        </div>
 
-    <div class="kpi-small">
-    Selected day
-    </div>
+        <div class="kpi-small">
+        Selected day
+        </div>
 
-    </div>
-    """, unsafe_allow_html=True)
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
 with col2:
 
-    st.markdown("""
-    <div class="kpi-card">
+    st.markdown(
+        f"""
+        <div class="kpi-card">
 
-    <div class="kpi-label">
-    🔥 MOST USED APP
-    </div>
+        <div class="kpi-label">
+        🔥 MOST USED APP
+        </div>
 
-    <div class="kpi-value">
-    """ + top_app + """
-    </div>
+        <div class="kpi-value">
+        {top_app}
+        </div>
 
-    <div class="kpi-small">
-    """ + str(top_app_minutes) + """ minutes
-    </div>
+        <div class="kpi-small">
+        {top_app_minutes} minutes
+        </div>
 
-    </div>
-    """, unsafe_allow_html=True)
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
 with col3:
 
     status = "Over goal" if difference > 0 else "Within goal"
 
-    st.markdown("""
-    <div class="kpi-card">
+    st.markdown(
+        f"""
+        <div class="kpi-card">
 
-    <div class="kpi-label">
-    🎯 DAILY GOAL
-    </div>
+        <div class="kpi-label">
+        🎯 DAILY GOAL
+        </div>
 
-    <div class="kpi-value">
-    """ + f"{difference:+} min" + """
-    </div>
+        <div class="kpi-value">
+        {difference:+} min
+        </div>
 
-    <div class="kpi-small">
-    """ + status + """
-    </div>
+        <div class="kpi-small">
+        {status}
+        </div>
 
-    </div>
-    """, unsafe_allow_html=True)
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
 # =====================================================
 # GOAL PROGRESS
@@ -368,11 +374,8 @@ api_key = os.getenv("GEMINI_API_KEY")
 
 if api_key:
 
-    client = genai.Client(api_key=api_key)
-
     prompt = f"""
-You are Life-OS, a brutal-but-fair holistic productivity
-and digital wellbeing coach.
+You are Life-OS, a practical digital wellbeing coach.
 
 Analyze the user's screen-time data for {selected_date}.
 
@@ -411,9 +414,41 @@ Format:
 
     try:
 
-        response = client.models.generate_content(
-            model="gemini-3.6-flash",
-            contents=prompt
+        # Gemini REST API
+        url = (
+            "https://generativelanguage.googleapis.com/"
+            "v1beta/models/gemini-2.5-flash:generateContent"
+        )
+
+        payload = {
+            "contents": [
+                {
+                    "parts": [
+                        {
+                            "text": prompt
+                        }
+                    ]
+                }
+            ]
+        }
+
+        response = requests.post(
+            url,
+            headers={
+                "x-goog-api-key": api_key,
+                "Content-Type": "application/json"
+            },
+            json=payload,
+            timeout=60
+        )
+
+        response.raise_for_status()
+
+        result = response.json()
+
+        ai_text = (
+            result["candidates"][0]
+            ["content"]["parts"][0]["text"]
         )
 
         st.markdown(
@@ -421,11 +456,23 @@ Format:
             unsafe_allow_html=True
         )
 
-        st.markdown(response.text)
+        st.markdown(ai_text)
 
         st.markdown(
             '</div>',
             unsafe_allow_html=True
+        )
+
+    except requests.exceptions.RequestException as e:
+
+        st.error(
+            f"Gemini connection error: {e}"
+        )
+
+    except (KeyError, IndexError):
+
+        st.error(
+            "Gemini returned an unexpected response."
         )
 
     except Exception as e:
