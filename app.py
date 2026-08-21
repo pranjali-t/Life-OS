@@ -101,9 +101,13 @@ st.markdown("""
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-df = pd.read_csv(
-    os.path.join(BASE_DIR, "screentime.csv")
-)
+csv_path = os.path.join(BASE_DIR, "screentime.csv")
+
+if not os.path.exists(csv_path):
+    st.error("screentime.csv not found in the project folder.")
+    st.stop()
+
+df = pd.read_csv(csv_path)
 
 # =====================================================
 # HERO
@@ -173,7 +177,9 @@ st.sidebar.caption(
 
 daily_data = df[df["Date"] == selected_date]
 
-total_minutes = daily_data["Minutes_Used"].sum()
+total_minutes = int(
+    daily_data["Minutes_Used"].sum()
+)
 
 hours = total_minutes // 60
 minutes = total_minutes % 60
@@ -192,7 +198,7 @@ app_usage = (
 )
 
 top_app = app_usage.idxmax()
-top_app_minutes = app_usage.max()
+top_app_minutes = int(app_usage.max())
 
 # =====================================================
 # GOAL
@@ -262,7 +268,11 @@ with col2:
 
 with col3:
 
-    status = "Over goal" if difference > 0 else "Within goal"
+    status = (
+        "Over goal"
+        if difference > 0
+        else "Within goal"
+    )
 
     st.markdown(
         f"""
@@ -299,8 +309,8 @@ st.progress(goal_percentage / 100)
 if total_minutes > daily_goal:
 
     st.warning(
-        f"⚠️ You are {total_minutes - daily_goal} minutes "
-        f"over your daily goal."
+        f"⚠️ You are {total_minutes - daily_goal} "
+        f"minutes over your daily goal."
     )
 
 else:
@@ -414,7 +424,6 @@ Format:
 
     try:
 
-        # Gemini REST API
         url = (
             "https://generativelanguage.googleapis.com/"
             "v1beta/models/gemini-2.5-flash:generateContent"
@@ -432,14 +441,14 @@ Format:
             ]
         }
 
-       response = requests.post(
-           url + "?key=" + api_key,
-           headers={
-               "Content-Type": "application/json"
-           },
+        response = requests.post(
+            url + "?key=" + api_key,
+            headers={
+                "Content-Type": "application/json"
+            },
             json=payload,
             timeout=60
-       )
+        )
 
         response.raise_for_status()
 
@@ -461,6 +470,20 @@ Format:
             '</div>',
             unsafe_allow_html=True
         )
+
+    except requests.exceptions.HTTPError as e:
+
+        st.error(
+            f"Gemini API error: {e}"
+        )
+
+        try:
+            error_details = response.json()
+            st.caption(
+                str(error_details)
+            )
+        except Exception:
+            pass
 
     except requests.exceptions.RequestException as e:
 
@@ -494,4 +517,4 @@ st.divider()
 
 st.caption(
     "Life-OS • Track less. Live more. 🧠"
-) 
+)
