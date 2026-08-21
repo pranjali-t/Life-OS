@@ -432,15 +432,14 @@ Format:
             ]
         }
 
-        response = requests.post(
-            url,
-            headers={
-                "x-goog-api-key": api_key,
-                "Content-Type": "application/json"
-            },
+       response = requests.post(
+           url + "?key=" + api_key,
+           headers={
+               "Content-Type": "application/json"
+           },
             json=payload,
             timeout=60
-        )
+       )
 
         response.raise_for_status()
 
